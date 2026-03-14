@@ -6,6 +6,9 @@ import subprocess
 from pathlib import Path
 
 from .archive import ArchiveManager
+from .backends.image_api import APIImageBackend
+from .backends.image_local_optional import LocalOptionalImageBackend
+from .backends.thumbnail_generator import build_thumbnail
 from .concept_engine import generate_concept, seed_from_date
 from .config import AppConfig
 from .gallery import build_gallery
@@ -13,19 +16,8 @@ from .metadata import build_metadata
 from .music_engine import compose_music
 from .renderer import render_video
 from .youtube import YouTubeUploader, write_upload_response
-from .backends.image_api import APIImageBackend
-from .backends.image_dummy import DummyImageBackend
-from .backends.image_local_optional import LocalOptionalImageBackend
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _image_backend(name: str):
-    if name == "api":
-        return APIImageBackend()
-    if name == "local":
-        return LocalOptionalImageBackend()
-    return DummyImageBackend()
 
 
 def _fallback_title_card(text: str, out_path: Path, width: int = 1920, height: int = 1080) -> Path:
@@ -50,31 +42,56 @@ def _fallback_title_card(text: str, out_path: Path, width: int = 1920, height: i
     return out_path
 
 
+def _generate_main_image(config: AppConfig, concept, metadata, image_path: Path, width: int, height: int) -> tuple[str, str]:
+    configured = config.get("image.backend", "local")
+    attempted: list[str] = []
+
+    def _try(name: str, backend) -> bool:
+        attempted.append(name)
+        try:
+            backend.generate(concept, image_path, width, height)
+            return True
+        except Exception as exc:
+            LOGGER.warning("Image backend '%s' failed: %s", name, exc)
+            return False
+
+    if configured == "api" and _try("api", APIImageBackend()):
+        return "api", "concept_art"
+
+    if _try("local", LocalOptionalImageBackend()):
+        return "local", "concept_art"
+
+    _fallback_title_card(metadata.title, image_path, width, height)
+    return "title_card_fallback", "title_card"
+
+
 def run_daily(config: AppConfig, day: dt.date | None = None, dry_run: bool = False) -> dict:
     day = day or dt.date.today()
     seed = seed_from_date(day)
     concept = generate_concept(seed)
     metadata = build_metadata(concept, day)
 
-    archive = ArchiveManager(config.get("archive.root_dir", "/var/lib/server-dreams"))
-    run_dir = archive.run_dir(day)
+    archive = ArchiveManager(config.get("output.dir", "./output"))
+    mode = str(config.get("output.mode", "latest"))
+    run_dir = archive.run_dir(day, mode=mode)
 
     image_path = run_dir / "image.png"
     thumbnail_path = run_dir / "thumbnail.png"
     music_path = run_dir / "music.wav"
     video_path = run_dir / "video.mp4"
 
-    image_backend = _image_backend(config.get("image.backend", "dummy"))
     width = int(config.get("image.width", 1920))
     height = int(config.get("image.height", 1080))
 
-    try:
-        image_backend.generate(concept, image_path, width, height)
-    except Exception as exc:
-        LOGGER.exception("Image generation failed: %s", exc)
-        _fallback_title_card(metadata.title, image_path, width, height)
+    image_backend_used, image_type = _generate_main_image(config, concept, metadata, image_path, width, height)
 
-    _fallback_title_card(metadata.thumbnail_text, thumbnail_path, 1280, 720)
+    try:
+        build_thumbnail(image_path=image_path, out_path=thumbnail_path, title_text=metadata.thumbnail_text)
+        thumbnail_type = "derived_art"
+    except Exception as exc:
+        LOGGER.exception("Thumbnail generation failed: %s", exc)
+        _fallback_title_card(metadata.thumbnail_text, thumbnail_path, 1280, 720)
+        thumbnail_type = "title_card"
 
     try:
         compose_music(
@@ -118,6 +135,8 @@ def run_daily(config: AppConfig, day: dt.date | None = None, dry_run: bool = Fal
         "seed": seed,
         "concept": concept.to_dict(),
         "metadata": metadata.to_dict(),
+        "image": {"backend": image_backend_used, "type": image_type},
+        "thumbnail": {"type": thumbnail_type},
         "paths": {
             "image": str(image_path),
             "thumbnail": str(thumbnail_path),
@@ -132,7 +151,8 @@ def run_daily(config: AppConfig, day: dt.date | None = None, dry_run: bool = Fal
     write_upload_response(run_dir / "upload_response.json", manifest["upload"])
     (run_dir / "logs.txt").write_text("Pipeline completed successfully\n", encoding="utf-8")
 
-    gallery_path = Path(config.get("archive.gallery_file", str(archive.root / "gallery.html")))
-    build_gallery(archive.root, gallery_path)
+    if mode == "dated":
+        gallery_path = Path(config.get("archive.gallery_file", str(archive.root / "gallery.html")))
+        build_gallery(archive.root, gallery_path)
 
     return manifest

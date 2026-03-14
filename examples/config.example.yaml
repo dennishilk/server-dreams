@@ -1,6 +1,9 @@
+output:
+  dir: ./output
+  mode: latest
+
 archive:
-  root_dir: /var/lib/server-dreams
-  gallery_file: /var/lib/server-dreams/gallery.html
+  gallery_file: ./output/gallery.html
 
 runtime:
   ffmpeg_bin: ffmpeg
@@ -12,7 +15,8 @@ concept:
   series_prefix: "Server Dreams"
 
 image:
-  backend: dummy
+  # Preferred behavior: api -> local concept art -> title card fallback
+  backend: local
   width: 1920
   height: 1080
 
