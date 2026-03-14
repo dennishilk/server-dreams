@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Server Dreams daily at 03:30
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+AccuracySec=1m
+Unit=server-dreams.service
+
+[Install]
+WantedBy=timers.target

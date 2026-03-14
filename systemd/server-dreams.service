@@ -1,0 +1,18 @@
+[Unit]
+Description=Server Dreams daily creative pipeline
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=server-dreams
+Group=server-dreams
+Environment=SERVER_DREAMS_CONFIG=/etc/server-dreams/config.yaml
+WorkingDirectory=/var/lib/server-dreams
+ExecStart=/usr/local/bin/server-dreams run-daily --config ${SERVER_DREAMS_CONFIG}
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+[Install]
+WantedBy=multi-user.target
