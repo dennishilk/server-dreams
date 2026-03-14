@@ -1,0 +1,30 @@
+archive:
+  root_dir: /var/lib/server-dreams
+  gallery_file: /var/lib/server-dreams/gallery.html
+
+runtime:
+  ffmpeg_bin: ffmpeg
+  ffprobe_bin: ffprobe
+  default_track_length_seconds: 45
+  dry_run: false
+
+concept:
+  series_prefix: "Server Dreams"
+
+image:
+  backend: dummy
+  width: 1920
+  height: 1080
+
+music:
+  backend: tracker
+  sample_rate: 44100
+  length_seconds: 45
+
+youtube:
+  enabled: true
+  publish: true
+  visibility: unlisted
+  client_secrets_file: /etc/server-dreams/client_secrets.json
+  token_file: /var/lib/server-dreams/oauth_token.json
+  category_id: "10"

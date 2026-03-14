@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "server-dreams"
+version = "0.1.0"
+description = "A tiny Debian server that dreams and publishes coherent retro videos daily."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "Server Dreams"}]
+dependencies = [
+]
+
+[project.scripts]
+server-dreams = "server_dreams.cli:main"
+
+[tool.setuptools]
+packages = ["server_dreams", "server_dreams.backends"]
